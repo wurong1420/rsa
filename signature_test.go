@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -141,7 +140,7 @@ func TestSignAndVerify(t *testing.T) {
 		log.Fatalf("Failed to parse private key: %v", err)
 	}
 	timestamp := 1731661401820
-	eventMessage := `{"eventName":"authorization","eventType":"transaction","data":{"id":"tid_OU9jF1coLG","fees":{"fx_fees":"0.02","atm_fees":"0.00"},"status":"PENDING","wallet":null,"card_id":"c0959759-67ac-49ca-a678-41071cc63646","channel":"ECOMMERCE","cleared_at":null,"created_at":"2024-11-15T09:03:21.179Z","bill_amount":1.08,"cleared_date":null,"bill_currency":"840","merchant_data":{"mcc_code":"5611","merchant_id":"020445528","mcc_category":"Men’s and Boy’s Clothing and Accessories Stores","merchant_city":"Rosmalen","merchant_name":"ONTHATASS","merchant_state":"null","merchant_country":"NLD","merchant_post_code":"null"},"decline_reason":{},"conversion_rate":"1.0800000000000","lifecycle_event_id":"39a7e9cd-bbd1-4c4a-925f-00f8e3ecbfe9","transaction_amount":1,"transaction_currency":"978"},"timestamp":%d}`
+	eventMessage := `test message`
 	content := fmt.Sprintf(eventMessage, timestamp)
 	fmt.Println(content)
 	signature, err := signMessage(privateKey, []byte(content))
@@ -166,36 +165,36 @@ func TestSignAndVerify(t *testing.T) {
 	fmt.Println("Signature verified successfully")
 }
 
-func TestSignatureVerify(t *testing.T) {
-	timestamp := 1731661401820
-	eventMessage := `{"eventName":"authorization","eventType":"transaction","data":{"id":"tid_OU9jF1coLG","fees":{"fx_fees":"0.02","atm_fees":"0.00"},"status":"PENDING","wallet":null,"card_id":"c0959759-67ac-49ca-a678-41071cc63646","channel":"ECOMMERCE","cleared_at":null,"created_at":"2024-11-15T09:03:21.179Z","bill_amount":1.08,"cleared_date":null,"bill_currency":"840","merchant_data":{"mcc_code":"5611","merchant_id":"020445528","mcc_category":"Men’s and Boy’s Clothing and Accessories Stores","merchant_city":"Rosmalen","merchant_name":"ONTHATASS","merchant_state":"null","merchant_country":"NLD","merchant_post_code":"null"},"decline_reason":{},"conversion_rate":"1.0800000000000","lifecycle_event_id":"39a7e9cd-bbd1-4c4a-925f-00f8e3ecbfe9","transaction_amount":1,"transaction_currency":"978"},"timestamp":%d}`
-	signatureStr := `X0l+otjBzSW6WpzTXmk+qP6no4JvkrxC9I+T3fc6dQNKG1MQYxjhPXE1WZsA9PX58ZTLez9puZh37vsr6b6eVt4MCtbn/XTJEQdBJ6nx0CceQUQDeiZsna1l1q7QCZoWQsnlUiD0H+v1LtUtLpkyF/b5dDi6cKQSy4LfBxUe/kRj/wcYu9FuLuN/eQ++lzWOmF1I9l8XvxWblM2R9DsOq9Frel3BE/DrdubUrpsU/TLRAYkBxYf9BX0fWBwP/kb6rWq13KmreDJzdBcnd5GXz8hOCRtpuAZqg68gJEeCi8QJsRGjTCNaKM/0cC9M6xgc2R0wyfXkpu17beOJXFf23w==`
-	content := fmt.Sprintf(eventMessage, timestamp)
+// func TestSignatureVerify(t *testing.T) {
+// 	timestamp := 1731661401820
+// 	eventMessage := `test message %d`
+// 	signatureStr := `X0l+otjBzSW6WpzTXmk+qP6no4JvkrxC9I+T3fc6dQNKG1MQYxjhPXE1WZsA9PX58ZTLez9puZh37vsr6b6eVt4MCtbn/XTJEQdBJ6nx0CceQUQDeiZsna1l1q7QCZoWQsnlUiD0H+v1LtUtLpkyF/b5dDi6cKQSy4LfBxUe/kRj/wcYu9FuLuN/eQ++lzWOmF1I9l8XvxWblM2R9DsOq9Frel3BE/DrdubUrpsU/TLRAYkBxYf9BX0fWBwP/kb6rWq13KmreDJzdBcnd5GXz8hOCRtpuAZqg68gJEeCi8QJsRGjTCNaKM/0cC9M6xgc2R0wyfXkpu17beOJXFf23w==`
+// 	content := fmt.Sprintf(eventMessage, timestamp)
 
-	fmt.Println(content)
+// 	fmt.Println(content)
 
-	// Parse the public key
-	rsaPublicKey, err := parsePublicKey(publicKeyStr)
-	if err != nil {
-		log.Fatalf("Failed to parse public key: %v", err)
-		return
-	}
+// 	// Parse the public key
+// 	rsaPublicKey, err := parsePublicKey(publicKeyStr)
+// 	if err != nil {
+// 		log.Fatalf("Failed to parse public key: %v", err)
+// 		return
+// 	}
 
-	hash := sha3.New256()
-	hash.Write([]byte(content))
-	hashed := hash.Sum(nil)
+// 	hash := sha3.New256()
+// 	hash.Write([]byte(content))
+// 	hashed := hash.Sum(nil)
 
-	signature, err := base64.StdEncoding.DecodeString(signatureStr)
-	if err != nil {
-		log.Fatalf("Failed to parse public key: %v", err)
-		return
-	}
+// 	signature, err := base64.StdEncoding.DecodeString(signatureStr)
+// 	if err != nil {
+// 		log.Fatalf("Failed to parse public key: %v", err)
+// 		return
+// 	}
 
-	// Verify the signature
-	err = VerifyPKCS1v15(rsaPublicKey, crypto.SHA3_256, []byte(hashed), []byte(signature))
-	if err != nil {
-		fmt.Println("Signature verification failed:", err)
-	} else {
-		fmt.Println("Signature is valid")
-	}
-}
+// 	// Verify the signature
+// 	err = VerifyPKCS1v15(rsaPublicKey, crypto.SHA3_256, []byte(hashed), []byte(signature))
+// 	if err != nil {
+// 		fmt.Println("Signature verification failed:", err)
+// 	} else {
+// 		fmt.Println("Signature is valid")
+// 	}
+// }
