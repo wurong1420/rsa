@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"crypto/rand"
+	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -15,15 +15,6 @@ import (
 )
 
 var (
-	publicKeyStr = `-----BEGIN PUBLIC KEY-----
-MIIBITANBgkqhkiG9w0BAQEFAAOCAQ4AMIIBCQKCAQB1KCqLRzqeRMpOh//gll08
-/Xmoh1r8suUszvC3H1dG2mz/cEos3jG0AI+67ba5D1bSpIJCfOaHCPNAFqZiKaSR
-X9QiWlnTqgyt45MUS5dZtRE4DA/pmzHa2NEW0yXeheycSbT4Yurw804ofB4wTVwk
-PEF0+9bdBB544ZGxZegiGC9NQTrfqLiCO8fCHWsPbKYix97k0gfFl0NHhX+UB1pL
-g5MPVk255mr7+63ymgc42ryhtx0f+aZALISdl/tfH7f35h4dE7kPJlGv6e7bgKVA
-HIFB9sfcWUs70/Cpa5rN0u4P14NHRZWHY/Lhv3uJEm6owr1WKA3nAQTHKdshcFar
-AgMBAAE=
------END PUBLIC KEY-----`
 	privateKeyStr = `-----BEGIN PRIVATE KEY-----
 MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC3vGbrBGp6IQpL
 8RtNFsCkp+ghke1MBm/4sn+KjLEoDirb9uUbSxcnyf8FiiN6IRGm+4QlhvXnMyWX
@@ -53,8 +44,7 @@ q3VkTQwI7V2eX24ZPMxqOJ+jFtKX9Z0wvnY9aheQQTDi43z72gLKOOrc1Nfisa2O
 6obTrwVHs4JBfuc6QWowCA==
 -----END PRIVATE KEY-----`
 
-	publicKeyStr1 = `-----BEGIN PUBLIC KEY-----
-
+	publicKeyStr = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt7xm6wRqeiEKS/EbTRbA
 pKfoIZHtTAZv+LJ/ioyxKA4q2/blG0sXJ8n/BYojeiERpvuEJYb15zMll5avrUBK
 4/DTZBdsasLEctXM8BHuSw7papdmrsGVkSvoYZW66ElVhD2EIiExBmQj6j+P5HEz
@@ -95,30 +85,21 @@ func parsePublicKey(pemPublicKey string) (*rsa.PublicKey, error) {
 }
 
 func signMessage(privateKey *rsa.PrivateKey, message []byte) (string, error) {
-	// 计算 SHA3-256 哈希值
-	hash := sha3.New256()
-	// hash := sha256.New()
-	hash.Write(message)
-	hashed := hash.Sum(nil)
+	hashed := Hash(message)
 
-	// 使用 RSA PKCS1v15 签名
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, 0, hashed)
+	// signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA3_224, hashed)
+	signature, err := SignPKCS1v15(privateKey, hashA, hashed)
 	if err != nil {
 		return "", err
 	}
 
-	// 返回 Base64 编码的签名
 	return base64.StdEncoding.EncodeToString(signature), nil
 }
 
 func verifySignature(publicKey *rsa.PublicKey, message []byte, encodedSignature string) error {
-	// 计算 SHA3-256 哈希值
-	hash := sha3.New256()
-	// hash := sha256.New()
-	hash.Write(message)
-	hashed := hash.Sum(nil)
+	hashed := Hash(message)
 
-	fmt.Println(hex.EncodeToString(hashed))
+	fmt.Println("Hash:", hex.EncodeToString(hashed))
 
 	// fmt.Println(hashed)
 
@@ -128,9 +109,23 @@ func verifySignature(publicKey *rsa.PublicKey, message []byte, encodedSignature 
 		return err
 	}
 
-	// 使用 RSA PKCS1v15 验证签名
-	// return rsa.VerifyPKCS1v15(publicKey, 0, hashed, signature)
-	return VerifyPKCS1v15(publicKey, 0, hashed, signature)
+	return VerifyPKCS1v15(publicKey, hashA, hashed, signature)
+}
+
+var hashA = crypto.SHA3_224
+
+// var hashA = crypto.SHA3_256
+// var hashA = crypto.SHA3_384
+// var hashA = crypto.SHA3_512
+
+func Hash(message []byte) []byte {
+	// hash := sha3.New256()
+	// hash := sha3.New384()
+	// hash := sha3.New512()
+	hash := sha3.New224()
+	// hash := sha256.New()
+	hash.Write(message)
+	return hash.Sum(nil)
 }
 
 func TestSignAndVerify(t *testing.T) {
@@ -139,20 +134,18 @@ func TestSignAndVerify(t *testing.T) {
 	if err != nil {
 		log.Fatalf("Failed to parse private key: %v", err)
 	}
-	timestamp := 1731661401820
-	eventMessage := `test message`
-	content := fmt.Sprintf(eventMessage, timestamp)
-	fmt.Println(content)
+	content := `hello world`
+	fmt.Println("message is:", content)
 	signature, err := signMessage(privateKey, []byte(content))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	fmt.Println(signature)
+	fmt.Println("Signature:", base64.StdEncoding.EncodeToString([]byte(signature)))
 
 	// Parse the public key
-	rsaPublicKey, err := parsePublicKey(publicKeyStr1)
+	rsaPublicKey, err := parsePublicKey(publicKeyStr)
 	if err != nil {
 		log.Fatalf("Failed to parse public key: %v", err)
 		return
@@ -164,37 +157,3 @@ func TestSignAndVerify(t *testing.T) {
 	}
 	fmt.Println("Signature verified successfully")
 }
-
-// func TestSignatureVerify(t *testing.T) {
-// 	timestamp := 1731661401820
-// 	eventMessage := `test message %d`
-// 	signatureStr := `X0l+otjBzSW6WpzTXmk+qP6no4JvkrxC9I+T3fc6dQNKG1MQYxjhPXE1WZsA9PX58ZTLez9puZh37vsr6b6eVt4MCtbn/XTJEQdBJ6nx0CceQUQDeiZsna1l1q7QCZoWQsnlUiD0H+v1LtUtLpkyF/b5dDi6cKQSy4LfBxUe/kRj/wcYu9FuLuN/eQ++lzWOmF1I9l8XvxWblM2R9DsOq9Frel3BE/DrdubUrpsU/TLRAYkBxYf9BX0fWBwP/kb6rWq13KmreDJzdBcnd5GXz8hOCRtpuAZqg68gJEeCi8QJsRGjTCNaKM/0cC9M6xgc2R0wyfXkpu17beOJXFf23w==`
-// 	content := fmt.Sprintf(eventMessage, timestamp)
-
-// 	fmt.Println(content)
-
-// 	// Parse the public key
-// 	rsaPublicKey, err := parsePublicKey(publicKeyStr)
-// 	if err != nil {
-// 		log.Fatalf("Failed to parse public key: %v", err)
-// 		return
-// 	}
-
-// 	hash := sha3.New256()
-// 	hash.Write([]byte(content))
-// 	hashed := hash.Sum(nil)
-
-// 	signature, err := base64.StdEncoding.DecodeString(signatureStr)
-// 	if err != nil {
-// 		log.Fatalf("Failed to parse public key: %v", err)
-// 		return
-// 	}
-
-// 	// Verify the signature
-// 	err = VerifyPKCS1v15(rsaPublicKey, crypto.SHA3_256, []byte(hashed), []byte(signature))
-// 	if err != nil {
-// 		fmt.Println("Signature verification failed:", err)
-// 	} else {
-// 		fmt.Println("Signature is valid")
-// 	}
-// }

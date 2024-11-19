@@ -8,18 +8,35 @@ import (
 	"math/big"
 )
 
-// 手动解密签名（使用公钥）
+func decrypt(priKey *rsa.PrivateKey, ciphertext []byte) ([]byte, error) {
+	d, n := priKey.D.String(), priKey.N.String()
+	c := new(big.Int).SetBytes(ciphertext)
+
+	privateExponent := new(big.Int)
+	modulus := new(big.Int)
+
+	if _, ok := privateExponent.SetString(d, 10); !ok {
+		return nil, rsa.ErrDecryption
+	}
+	if _, ok := modulus.SetString(n, 10); !ok {
+		return nil, errors.New("failed to parse modulus")
+	}
+
+	//m = c^d mod n
+	m := new(big.Int).Exp(c, privateExponent, modulus)
+
+	return m.Bytes(), nil
+}
+
 func encrypt(pubKey *rsa.PublicKey, signature []byte) []byte {
-	// 将签名转换为大整数
 	signatureInt := new(big.Int).SetBytes(signature)
 
-	// 执行 RSA 解密：m = s^e mod n
+	//m = s^e mod n
 	decryptedInt := new(big.Int).Exp(signatureInt, big.NewInt(int64(pubKey.E)), pubKey.N)
 
-	// 将解密后的整数转换为字节数组
 	decryptedBytes := decryptedInt.Bytes()
 
-	// 填充 PKCS#1 v1.5 长度不足部分（高位补零）
+	//fill 0
 	keySize := (pubKey.N.BitLen() + 7) / 8
 	if len(decryptedBytes) < keySize {
 		padded := make([]byte, keySize)
@@ -38,7 +55,10 @@ var hashPrefixes = map[crypto.Hash][]byte{
 	crypto.SHA512:    {0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40},
 	crypto.MD5SHA1:   {}, // A special TLS case which doesn't use an ASN1 prefix.
 	crypto.RIPEMD160: {0x30, 0x20, 0x30, 0x08, 0x06, 0x06, 0x28, 0xcf, 0x06, 0x03, 0x00, 0x31, 0x04, 0x14},
+	crypto.SHA3_224:  {0x30, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x07, 0x05, 0x00, 0x04, 0x1c},
 	crypto.SHA3_256:  {0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x08, 0x05, 0x00, 0x04, 0x20},
+	crypto.SHA3_384:  {0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x09, 0x05, 0x00, 0x04, 0x30},
+	crypto.SHA3_512:  {0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0a, 0x05, 0x00, 0x04, 0x40},
 }
 
 func pkcs1v15HashInfo(hash crypto.Hash, inLen int) (hashLen int, prefix []byte, err error) {
@@ -59,8 +79,31 @@ func pkcs1v15HashInfo(hash crypto.Hash, inLen int) (hashLen int, prefix []byte, 
 	return
 }
 
-func VerifyPKCS1v15(pub *rsa.PublicKey, hash crypto.Hash, hashed []byte, sig []byte) error {
+func SignPKCS1v15(priv *rsa.PrivateKey, hash crypto.Hash, hashed []byte) ([]byte, error) {
+	hashLen, prefix, err := pkcs1v15HashInfo(hash, len(hashed))
+	if err != nil {
+		return nil, err
+	}
 
+	tLen := len(prefix) + hashLen
+	k := priv.Size()
+	if k < tLen+11 {
+		return nil, rsa.ErrMessageTooLong
+	}
+
+	// EM = 0x00 || 0x01 || PS || 0x00 || T
+	em := make([]byte, k)
+	em[1] = 1
+	for i := 2; i < k-tLen-1; i++ {
+		em[i] = 0xff
+	}
+	copy(em[k-tLen:k-hashLen], prefix)
+	copy(em[k-hashLen:k], hashed)
+
+	return decrypt(priv, em)
+}
+
+func VerifyPKCS1v15(pub *rsa.PublicKey, hash crypto.Hash, hashed []byte, sig []byte) error {
 	hashLen, prefix, err := pkcs1v15HashInfo(hash, len(hashed))
 	if err != nil {
 		return err
@@ -80,7 +123,6 @@ func VerifyPKCS1v15(pub *rsa.PublicKey, hash crypto.Hash, hashed []byte, sig []b
 	}
 
 	em := encrypt(pub, sig)
-
 	ok := subtle.ConstantTimeByteEq(em[0], 0)
 	ok &= subtle.ConstantTimeByteEq(em[1], 1)
 	ok &= subtle.ConstantTimeCompare(em[k-hashLen:k], hashed)
